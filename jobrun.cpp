@@ -22,10 +22,12 @@ private:
 	std::optional<size_t> affinity_;
 	std::optional<unsigned int> priority_;
 	std::optional<unsigned int> sched_class_;
+	std::optional<unsigned int> ui_restrictions_;
 	std::wstring application_;
 	int argc_;
 	wchar_t** argv_;
 	int current_;
+
 public:
 	arguments(int argc, wchar_t** argv)
 		: argc_(argc), argv_(argv)
@@ -35,6 +37,7 @@ public:
 
 		parse();
 	}
+
 	std::optional<size_t> const& job_commit_megabytes() const { return job_commit_megabytes_; }
 	std::optional<size_t> const& process_commit_megabytes() const { return process_commit_megabytes_; }
 	std::optional<size_t> const& process_ws_megabytes() const { return process_ws_megabytes_; }
@@ -44,7 +47,9 @@ public:
 	std::optional<size_t> const& affinity() const { return affinity_; }
 	std::optional<unsigned int> const& priority() const { return priority_; }
 	std::optional<unsigned int> const& sched_class() const { return sched_class_; }
+	std::optional<unsigned int> const& ui_restrictions() const { return ui_restrictions_; }
 	std::wstring application() const { return application_; }
+
 private:
 	void parse()
 	{
@@ -91,6 +96,10 @@ private:
 					usage();
 				}
 			}
+			else if (argv_[current_] == L"-u"s)
+			{
+				ui_restrictions_ = static_cast<unsigned int>(parse_uint());
+			}
 			else
 			{
 				application_ = argv_[current_];
@@ -102,6 +111,7 @@ private:
 			usage();
 		}
 	}
+
 	size_t parse_uint()
 	{
 		if (current_ == argc_ - 1)
@@ -118,6 +128,7 @@ private:
 		}
 		return value;
 	}
+
 	bool parse_bool()
 	{
 		if (current_ == argc_ - 1)
@@ -140,6 +151,7 @@ private:
 			usage();
 		}
 	}
+
 	[[noreturn]] void usage()
 	{
 		std::cout << '\n';
@@ -148,7 +160,7 @@ private:
 		std::cout << '\n';
 		std::cout << "USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]\n";
 		std::cout << "              [-n NUMPROCS] [-b yes|no] [-a AFFINITY] [-p PRIORITY]\n";
-		std::cout << "              [-s SCHEDCLASS] <application>\n";
+		std::cout << "              [-s SCHEDCLASS] [-u UIRESTRS] <application>\n";
 		std::cout << '\n';
 		std::cout << "  -M MEGABYTES   Limit the total committed memory of the job's processes\n";
 		std::cout << "  -m MEGABYTES   Limit the committed memory of each of the job's processes\n";
@@ -159,8 +171,16 @@ private:
 		std::cout << "  -a AFFINITY    Set the processor affinity of the job's processes\n";
 		std::cout << "  -p PRIORITY    Set the priority class of the job's processes\n";
 		std::cout << "  -s SCHEDCLASS  Set the scheduling class (0-9) of the job's processes\n";
+		std::cout << "  -u UIRESTRS    Set the UI restriction class for the job's processes, a bitmask:\n";
+		std::cout << "                     1 - prevent using USER handles from other processes\n";
+		std::cout << "                     2 - prevent reading the clipboard\n";
+		std::cout << "                     4 - prevent writing the clipboard\n";
+		std::cout << "                     8 - prevent changing system parameters with SystemParametersInfo\n";
+		std::cout << "                    16 - prevent changing display settings with ChangeDisplaySettings\n";
+		std::cout << "                    32 - prevent accessing global atoms\n";
+		std::cout << "                    64 - prevent creating desktops and switching desktops\n";
+		std::cout << "                   128 - prevent shutting down or restarting with ExitWindows(Ex)\n";
 		// TODO: CPU rate limiting
-		// TODO: UI restrictions
 		std::cout << '\n';
 		std::exit(1);
 	}
@@ -189,6 +209,8 @@ std::wostream& operator<<(std::wostream& os, arguments const& args)
 		os << "  with priority class of " << args.priority().value() << '\n';
 	if (args.sched_class())
 		os << "  with scheduling class of " << args.sched_class().value() << '\n';
+	if (args.ui_restrictions())
+		os << "  with UI restrictions of " << std::bitset<7>(args.ui_restrictions().value()) << '\n';
 	return os;
 }
 
@@ -210,6 +232,7 @@ class job
 {
 private:
 	HANDLE job_;
+
 public:
 	job()
 	{
@@ -222,6 +245,7 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectExtendedLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE");
 	}
+
 	void set_job_commit_limit(size_t megabytes)
 	{
 		JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
@@ -230,6 +254,7 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectExtendedLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_JOB_MEMORY");
 	}
+
 	void set_process_commit_limit(size_t megabytes)
 	{
 		JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
@@ -238,6 +263,7 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectExtendedLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_PROCESS_MEMORY");
 	}
+
 	void set_ws_limit(size_t megabytes)
 	{
 		JOBOBJECT_BASIC_LIMIT_INFORMATION info = { 0 };
@@ -247,6 +273,7 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectBasicLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_WORKINGSET");
 	}
+
 	void set_cpu(size_t seconds)
 	{
 		JOBOBJECT_BASIC_LIMIT_INFORMATION info = { 0 };
@@ -255,6 +282,7 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectBasicLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_JOB_TIME");
 	}
+
 	void set_num_procs(unsigned int num_procs)
 	{
 		JOBOBJECT_BASIC_LIMIT_INFORMATION info = { 0 };
@@ -263,6 +291,7 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectBasicLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_ACTIVE_PROCESS");
 	}
+
 	void set_breakaway(bool breakaway)
 	{
 		if (breakaway)
@@ -273,6 +302,7 @@ public:
 				throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_BREAKAWAY_OK");
 		}
 	}
+
 	void set_affinity(size_t affinity)
 	{
 		JOBOBJECT_BASIC_LIMIT_INFORMATION info = { 0 };
@@ -281,6 +311,7 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectBasicLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_AFFINITY");
 	}
+
 	void set_priority(unsigned int priority)
 	{
 		JOBOBJECT_BASIC_LIMIT_INFORMATION info = { 0 };
@@ -289,14 +320,24 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectBasicLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_PRIORITY_CLASS");
 	}
-	void set_sched_class(int sched_class)
+
+	void set_sched_class(unsigned int sched_class)
 	{
 		JOBOBJECT_BASIC_LIMIT_INFORMATION info = { 0 };
-		info.SchedulingClass = static_cast<DWORD>(sched_class);
+		info.SchedulingClass = sched_class;
 		info.LimitFlags = JOB_OBJECT_LIMIT_SCHEDULING_CLASS;
 		if (FALSE == SetInformationJobObject(job_, JobObjectBasicLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_SCHEDULING_CLASS");
 	}
+
+	void set_ui_restrictions(unsigned ui_restrictions)
+	{
+		JOBOBJECT_BASIC_UI_RESTRICTIONS restrictions = { 0 };
+		restrictions.UIRestrictionsClass = ui_restrictions;
+		if (FALSE == SetInformationJobObject(job_, JobObjectBasicUIRestrictions, &restrictions, sizeof(restrictions)))
+			throw job_exception("SetInformationJobObject failed when setting JobObjectBasicUIRestrictions");
+	}
+
 	void run_process_in_job(std::wstring const& application)
 	{
 		std::unique_ptr<wchar_t[]> cmd(new wchar_t[application.size() + 1]);
@@ -314,6 +355,7 @@ public:
 			throw job_exception("ResumeThread failed");
 		CloseHandle(pi.hProcess);
 	}
+
 	~job()
 	{
 		CloseHandle(job_);
@@ -346,6 +388,8 @@ int wmain(int argc, wchar_t* argv[])
 			job.set_priority(args.priority().value());
 		if (args.sched_class())
 			job.set_sched_class(args.sched_class().value());
+		if (args.ui_restrictions())
+			job.set_ui_restrictions(args.ui_restrictions().value());
 		job.run_process_in_job(args.application());
 
 		std::cout << "Press ENTER to exit the job\n";
