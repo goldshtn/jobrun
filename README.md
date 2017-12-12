@@ -10,7 +10,7 @@ jobrun - run a process inside a job and limit its behavior
 
 USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]
               [-n NUMPROCS] [-b yes|no] [-a AFFINITY] [-p PRIORITY]
-              [-s SCHEDCLASS] <application>
+              [-s SCHEDCLASS] [-u UIRESTRS] <application>
 
   -M MEGABYTES   Limit the total committed memory of the job's processes
   -m MEGABYTES   Limit the committed memory of each of the job's processes
@@ -21,6 +21,15 @@ USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]
   -a AFFINITY    Set the processor affinity of the job's processes
   -p PRIORITY    Set the priority class of the job's processes
   -s SCHEDCLASS  Set the scheduling class (0-9) of the job's processes
+  -u UIRESTRS    Set the UI restriction class for the job's processes, a bitmask:
+                     1 - prevent using USER handles from other processes
+                     2 - prevent reading the clipboard
+                     4 - prevent writing the clipboard
+                     8 - prevent changing system parameters with SystemParametersInfo
+                    16 - prevent changing display settings with ChangeDisplaySettings
+                    32 - prevent accessing global atoms
+                    64 - prevent creating desktops and switching desktops
+                   128 - prevent shutting down or restarting with ExitWindows(Ex)
 ```
 
 To build, open the solution in Visual Studio (tested with 2017) and build.
