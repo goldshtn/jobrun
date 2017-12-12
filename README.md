@@ -39,6 +39,7 @@ Examples:
 
 * Launch Notepad so that it cannot access the clipboard: `jobrun -u 6 notepad`
 * Launch a suspicious process but disallow it to create children: `jobrun -n 1 suspicious.exe`
+* Run with 1% of CPU time per scheduling interval: `jobrun -r 1 hungry.exe`
 * Limit memory usage and CPU affinity: `jobrun -m 100 -a 1 hungry.exe`
 
 To build, open the solution in Visual Studio (tested with 2017) and build.
