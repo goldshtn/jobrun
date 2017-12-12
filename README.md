@@ -8,12 +8,13 @@ Usage:
 jobrun - run a process inside a job and limit its behavior
          copyright (C) 2017 Sasha Goldshtein
 
-USAGE: jobrun [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS] [-n NUMPROCS]
-              [-b yes|no] [-a AFFINITY] [-p PRIORITY] [-s SCHEDCLASS]
-              <application>
+USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]
+              [-n NUMPROCS] [-b yes|no] [-a AFFINITY] [-p PRIORITY]
+              [-s SCHEDCLASS] <application>
 
-  -m MEGABYTES   Limit total committed memory of the job's processes
-  -w MEGABYTES   Limit the process working set of the job's processes (soft limit)
+  -M MEGABYTES   Limit the total committed memory of the job's processes
+  -m MEGABYTES   Limit the committed memory of each of the job's processes
+  -w MEGABYTES   Limit the process working set of each of the job's processes (soft limit)
   -c SECONDS     Limit the total CPU time of the job's processes
   -n NUMPROCS    Limit the number of processes in the job
   -b yes|no      Allow job processes to break away

@@ -5,6 +5,7 @@
 #include <exception>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 
 using namespace std::string_literals;
@@ -12,14 +13,15 @@ using namespace std::string_literals;
 class arguments
 {
 private:
-	size_t commit_megabytes_ = 0;
-	size_t ws_megabytes_ = 0;
-	size_t cpu_seconds_ = 0;
-	unsigned int num_procs_ = 0;
-	bool breakaway_ = false;
-	size_t affinity_ = 0;
-	unsigned int priority_ = 0;
-	int sched_class_ = -1;
+	std::optional<size_t> job_commit_megabytes_;
+	std::optional<size_t> process_commit_megabytes_;
+	std::optional<size_t> process_ws_megabytes_;
+	std::optional<size_t> cpu_seconds_;
+	std::optional<unsigned int> num_procs_;
+	std::optional<bool> breakaway_;
+	std::optional<size_t> affinity_;
+	std::optional<unsigned int> priority_;
+	std::optional<unsigned int> sched_class_;
 	std::wstring application_;
 	int argc_;
 	wchar_t** argv_;
@@ -33,34 +35,32 @@ public:
 
 		parse();
 	}
-	bool has_commit_megabytes() const { return commit_megabytes_ != 0; }
-	bool has_ws_megabytes() const { return ws_megabytes_ != 0; }
-	bool has_seconds() const { return cpu_seconds_ != 0; }
-	bool has_num_procs() const { return num_procs_ != 0; }
-	bool has_affinity() const { return affinity_ != 0; }
-	bool has_priority() const { return priority_ != 0; }
-	bool has_sched_class() const { return sched_class_ != -1; }
-	size_t commit_megabytes() const { return commit_megabytes_; }
-	size_t ws_megabytes() const { return ws_megabytes_; }
-	size_t cpu_seconds() const { return cpu_seconds_; }
-	unsigned int num_procs() const { return num_procs_; }
-	bool breakaway() const { return breakaway_; }
-	size_t affinity() const { return affinity_; }
-	unsigned int priority() const { return priority_; }
-	int sched_class() const { return sched_class_; }
+	std::optional<size_t> const& job_commit_megabytes() const { return job_commit_megabytes_; }
+	std::optional<size_t> const& process_commit_megabytes() const { return process_commit_megabytes_; }
+	std::optional<size_t> const& process_ws_megabytes() const { return process_ws_megabytes_; }
+	std::optional<size_t> const& cpu_seconds() const { return cpu_seconds_; }
+	std::optional<unsigned int> const& num_procs() const { return num_procs_; }
+	std::optional<bool> const& breakaway() const { return breakaway_; }
+	std::optional<size_t> const& affinity() const { return affinity_; }
+	std::optional<unsigned int> const& priority() const { return priority_; }
+	std::optional<unsigned int> const& sched_class() const { return sched_class_; }
 	std::wstring application() const { return application_; }
 private:
 	void parse()
 	{
 		for (current_ = 1; current_ < argc_; ++current_)
 		{
-			if (argv_[current_] == L"-m"s)
+			if (argv_[current_] == L"-M"s)
 			{
-				commit_megabytes_ = parse_uint();
+				job_commit_megabytes_ = parse_uint();
+			}
+			else if (argv_[current_] == L"-m"s)
+			{
+				process_commit_megabytes_ = parse_uint();
 			}
 			else if (argv_[current_] == L"-w"s)
 			{
-				ws_megabytes_ = parse_uint();
+				process_ws_megabytes_ = parse_uint();
 			}
 			else if (argv_[current_] == L"-c"s)
 			{
@@ -68,7 +68,7 @@ private:
 			}
 			else if (argv_[current_] == L"-n"s)
 			{
-				num_procs_ = parse_uint();
+				num_procs_ = static_cast<unsigned int>(parse_uint());
 			}
 			else if (argv_[current_] == L"-b"s)
 			{
@@ -80,11 +80,16 @@ private:
 			}
 			else if (argv_[current_] == L"-p"s)
 			{
-				priority_ = parse_uint();
+				priority_ = static_cast<unsigned int>(parse_uint());
 			}
 			else if (argv_[current_] == L"-s"s)
 			{
-				sched_class_ = parse_uint();
+				sched_class_ = static_cast<unsigned int>(parse_uint());
+				if (sched_class_.value() < 0 || sched_class_.value() > 9)
+				{
+					std::cout << "Scheduling class value must be 0-9, but got: " << sched_class_.value() << '\n';
+					usage();
+				}
 			}
 			else
 			{
@@ -141,12 +146,13 @@ private:
 		std::cout << "jobrun - run a process inside a job and limit its behavior\n";
 		std::cout << "         copyright (C) 2017 Sasha Goldshtein\n";
 		std::cout << '\n';
-		std::cout << "USAGE: jobrun [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS] [-n NUMPROCS]\n";
-		std::cout << "              [-b yes|no] [-a AFFINITY] [-p PRIORITY] [-s SCHEDCLASS]\n";
-		std::cout << "              <application>\n";
+		std::cout << "USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]\n";
+		std::cout << "              [-n NUMPROCS] [-b yes|no] [-a AFFINITY] [-p PRIORITY]\n";
+		std::cout << "              [-s SCHEDCLASS] <application>\n";
 		std::cout << '\n';
-		std::cout << "  -m MEGABYTES   Limit total committed memory of the job's processes\n";
-		std::cout << "  -w MEGABYTES   Limit the process working set of the job's processes (soft limit)\n";
+		std::cout << "  -M MEGABYTES   Limit the total committed memory of the job's processes\n";
+		std::cout << "  -m MEGABYTES   Limit the committed memory of each of the job's processes\n";
+		std::cout << "  -w MEGABYTES   Limit the process working set of each of the job's processes (soft limit)\n";
 		std::cout << "  -c SECONDS     Limit the total CPU time of the job's processes\n";
 		std::cout << "  -n NUMPROCS    Limit the number of processes in the job\n";
 		std::cout << "  -b yes|no      Allow job processes to break away\n";
@@ -154,7 +160,6 @@ private:
 		std::cout << "  -p PRIORITY    Set the priority class of the job's processes\n";
 		std::cout << "  -s SCHEDCLASS  Set the scheduling class (0-9) of the job's processes\n";
 		// TODO: CPU rate limiting
-		// TODO: -m and -c to act per-process and not job-wide
 		// TODO: UI restrictions
 		std::cout << '\n';
 		std::exit(1);
@@ -164,21 +169,26 @@ private:
 std::wostream& operator<<(std::wostream& os, arguments const& args)
 {
 	os << "Launching application '" << args.application() << "'\n";
-	if (args.has_commit_megabytes())
-		os << "  with committed memory limit of " << args.commit_megabytes() << "MB\n";
-	if (args.has_ws_megabytes())
-		os << "  with working set memory limit of " << args.ws_megabytes() << "MB\n";
-	if (args.has_seconds())
-		os << "  with CPU limit of " << args.cpu_seconds() << " seconds\n";
-	if (args.has_num_procs())
-		os << "  with maximum of " << args.num_procs() << " active processes\n";
+	if (args.job_commit_megabytes())
+		os << "  with committed memory limit of " << args.job_commit_megabytes().value() << "MB\n";
+	if (args.process_commit_megabytes())
+		os << "  with committed memory limit of " << args.process_commit_megabytes().value() << "MB\n";
+	if (args.process_ws_megabytes())
+		os << "  with working set memory limit of " << args.process_ws_megabytes().value() << "MB\n";
+	if (args.cpu_seconds())
+		os << "  with CPU limit of " << args.cpu_seconds().value() << " seconds\n";
+	if (args.num_procs())
+		os << "  with maximum of " << args.num_procs().value() << " active processes\n";
 	os << "  " << (args.breakaway() ? "allowing" : "not allowing") << " breakaway\n";
-	if (args.has_affinity())
-		os << "  with processor affinity of " << std::bitset<8 * sizeof(args.affinity())>(args.affinity()) << '\n';
-	if (args.has_priority())
-		os << "  with priority class of " << args.priority() << '\n';
-	if (args.has_sched_class())
-		os << "  with scheduling class of " << args.sched_class() << '\n';
+	if (args.affinity())
+	{
+		auto affinity = args.affinity().value();
+		os << "  with processor affinity of " << std::bitset<8 * sizeof(affinity)>(affinity) << '\n';
+	}
+	if (args.priority())
+		os << "  with priority class of " << args.priority().value() << '\n';
+	if (args.sched_class())
+		os << "  with scheduling class of " << args.sched_class().value() << '\n';
 	return os;
 }
 
@@ -212,13 +222,21 @@ public:
 		if (FALSE == SetInformationJobObject(job_, JobObjectExtendedLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE");
 	}
-	void set_commit_limit(size_t megabytes)
+	void set_job_commit_limit(size_t megabytes)
 	{
 		JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
 		info.JobMemoryLimit = megabytes * 1048576;
 		info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_JOB_MEMORY;
 		if (FALSE == SetInformationJobObject(job_, JobObjectExtendedLimitInformation, &info, sizeof(info)))
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_JOB_MEMORY");
+	}
+	void set_process_commit_limit(size_t megabytes)
+	{
+		JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
+		info.ProcessMemoryLimit = megabytes * 1048576;
+		info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+		if (FALSE == SetInformationJobObject(job_, JobObjectExtendedLimitInformation, &info, sizeof(info)))
+			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_PROCESS_MEMORY");
 	}
 	void set_ws_limit(size_t megabytes)
 	{
@@ -310,21 +328,24 @@ int wmain(int argc, wchar_t* argv[])
 	try
 	{
 		job job;
-		if (args.has_commit_megabytes())
-			job.set_commit_limit(args.commit_megabytes());
-		if (args.has_ws_megabytes())
-			job.set_ws_limit(args.ws_megabytes());
-		if (args.has_seconds())
-			job.set_cpu(args.cpu_seconds());
-		if (args.has_num_procs())
-			job.set_num_procs(args.num_procs());
-		job.set_breakaway(args.breakaway());
-		if (args.has_affinity())
-			job.set_affinity(args.affinity());
-		if (args.has_priority())
-			job.set_priority(args.priority());
-		if (args.has_sched_class())
-			job.set_sched_class(args.sched_class());
+		if (args.job_commit_megabytes())
+			job.set_job_commit_limit(args.job_commit_megabytes().value());
+		if (args.process_commit_megabytes())
+			job.set_process_commit_limit(args.process_commit_megabytes().value());
+		if (args.process_ws_megabytes())
+			job.set_ws_limit(args.process_ws_megabytes().value());
+		if (args.cpu_seconds())
+			job.set_cpu(args.cpu_seconds().value());
+		if (args.num_procs())
+			job.set_num_procs(args.num_procs().value());
+		if (args.breakaway())
+			job.set_breakaway(args.breakaway().value());
+		if (args.affinity())
+			job.set_affinity(args.affinity().value());
+		if (args.priority())
+			job.set_priority(args.priority().value());
+		if (args.sched_class())
+			job.set_sched_class(args.sched_class().value());
 		job.run_process_in_job(args.application());
 
 		std::cout << "Press ENTER to exit the job\n";
