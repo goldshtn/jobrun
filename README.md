@@ -32,4 +32,10 @@ USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]
                    128 - prevent shutting down or restarting with ExitWindows(Ex)
 ```
 
+Examples:
+
+* Launch Notepad so that it cannot access the clipboard: `jobrun -u 6 notepad`
+* Launch a suspicious process but disallow it to create children: `jobrun -n 1 suspicious.exe`
+* Limit memory usage and CPU affinity: `jobrun -m 100 -a 1 hungry.exe`
+
 To build, open the solution in Visual Studio (tested with 2017) and build.
