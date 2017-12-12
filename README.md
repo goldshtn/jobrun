@@ -10,7 +10,8 @@ jobrun - run a process inside a job and limit its behavior
 
 USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]
               [-n NUMPROCS] [-b yes|no] [-a AFFINITY] [-p PRIORITY]
-              [-s SCHEDCLASS] [-u UIRESTRS] <application>
+              [-s SCHEDCLASS] [-r CPURATE] [-t CPUWEIGHT] [-u UIRESTRS]
+              <application>
 
   -M MEGABYTES   Limit the total committed memory of the job's processes
   -m MEGABYTES   Limit the committed memory of each of the job's processes
@@ -21,6 +22,8 @@ USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]
   -a AFFINITY    Set the processor affinity of the job's processes
   -p PRIORITY    Set the priority class of the job's processes
   -s SCHEDCLASS  Set the scheduling class (0-9) of the job's processes
+  -r CPURATE     Set the portion (%) of the CPU cycles this job's threads can use
+  -t CPUWEIGHT   Set the scheduling weight (1-9) of the job object
   -u UIRESTRS    Set the UI restriction class for the job's processes, a bitmask:
                      1 - prevent using USER handles from other processes
                      2 - prevent reading the clipboard

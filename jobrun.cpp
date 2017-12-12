@@ -22,6 +22,8 @@ private:
 	std::optional<size_t> affinity_;
 	std::optional<unsigned int> priority_;
 	std::optional<unsigned int> sched_class_;
+	std::optional<unsigned int> cpu_rate_;
+	std::optional<unsigned int> cpu_weight_;
 	std::optional<unsigned int> ui_restrictions_;
 	std::wstring application_;
 	int argc_;
@@ -47,6 +49,8 @@ public:
 	std::optional<size_t> const& affinity() const { return affinity_; }
 	std::optional<unsigned int> const& priority() const { return priority_; }
 	std::optional<unsigned int> const& sched_class() const { return sched_class_; }
+	std::optional<unsigned int> const& cpu_rate() const { return cpu_rate_; }
+	std::optional<unsigned int> const& cpu_weight() const { return cpu_weight_; }
 	std::optional<unsigned int> const& ui_restrictions() const { return ui_restrictions_; }
 	std::wstring application() const { return application_; }
 
@@ -93,6 +97,24 @@ private:
 				if (sched_class_.value() < 0 || sched_class_.value() > 9)
 				{
 					std::cout << "Scheduling class value must be 0-9, but got: " << sched_class_.value() << '\n';
+					usage();
+				}
+			}
+			else if (argv_[current_] == L"-r"s)
+			{
+				cpu_rate_ = static_cast<unsigned int>(parse_uint());
+				if (cpu_rate_.value() <= 0 || cpu_rate_.value() > 100)
+				{
+					std::cout << "CPU rate must be 1-100 (%), but got: " << cpu_rate_.value() << '\n';
+					usage();
+				}
+			}
+			else if (argv_[current_] == L"-t"s)
+			{
+				cpu_weight_ = static_cast<unsigned int>(parse_uint());
+				if (cpu_weight_.value() < 1 || cpu_weight_.value() > 9)
+				{
+					std::cout << "Scheduling weight must be 1-9, but got: " << cpu_weight_.value() << '\n';
 					usage();
 				}
 			}
@@ -160,7 +182,8 @@ private:
 		std::cout << '\n';
 		std::cout << "USAGE: jobrun [-M MEGABYTES] [-m MEGABYTES] [-w MEGABYTES] [-c SECONDS]\n";
 		std::cout << "              [-n NUMPROCS] [-b yes|no] [-a AFFINITY] [-p PRIORITY]\n";
-		std::cout << "              [-s SCHEDCLASS] [-u UIRESTRS] <application>\n";
+		std::cout << "              [-s SCHEDCLASS] [-r CPURATE] [-t CPUWEIGHT] [-u UIRESTRS]\n";
+		std::cout << "              <application>\n";
 		std::cout << '\n';
 		std::cout << "  -M MEGABYTES   Limit the total committed memory of the job's processes\n";
 		std::cout << "  -m MEGABYTES   Limit the committed memory of each of the job's processes\n";
@@ -171,6 +194,8 @@ private:
 		std::cout << "  -a AFFINITY    Set the processor affinity of the job's processes\n";
 		std::cout << "  -p PRIORITY    Set the priority class of the job's processes\n";
 		std::cout << "  -s SCHEDCLASS  Set the scheduling class (0-9) of the job's processes\n";
+		std::cout << "  -r CPURATE     Set the portion (%) of the CPU cycles this job's threads can use\n";
+		std::cout << "  -t CPUWEIGHT   Set the scheduling weight (1-9) of the job object\n";
 		std::cout << "  -u UIRESTRS    Set the UI restriction class for the job's processes, a bitmask:\n";
 		std::cout << "                     1 - prevent using USER handles from other processes\n";
 		std::cout << "                     2 - prevent reading the clipboard\n";
@@ -180,7 +205,6 @@ private:
 		std::cout << "                    32 - prevent accessing global atoms\n";
 		std::cout << "                    64 - prevent creating desktops and switching desktops\n";
 		std::cout << "                   128 - prevent shutting down or restarting with ExitWindows(Ex)\n";
-		// TODO: CPU rate limiting
 		std::cout << '\n';
 		std::exit(1);
 	}
@@ -209,6 +233,10 @@ std::wostream& operator<<(std::wostream& os, arguments const& args)
 		os << "  with priority class of " << args.priority().value() << '\n';
 	if (args.sched_class())
 		os << "  with scheduling class of " << args.sched_class().value() << '\n';
+	if (args.cpu_rate())
+		os << "  with CPU rate of " << args.cpu_rate().value() << "%\n";
+	if (args.cpu_weight())
+		os << "  with CPU weight of " << args.cpu_weight().value() << '\n';
 	if (args.ui_restrictions())
 		os << "  with UI restrictions of " << std::bitset<7>(args.ui_restrictions().value()) << '\n';
 	return os;
@@ -330,6 +358,24 @@ public:
 			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_LIMIT_SCHEDULING_CLASS");
 	}
 
+	void set_cpu_rate(unsigned int cpu_rate)
+	{
+		JOBOBJECT_CPU_RATE_CONTROL_INFORMATION info = { 0 };
+		info.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP;
+		info.CpuRate = cpu_rate * 100;
+		if (FALSE == SetInformationJobObject(job_, JobObjectCpuRateControlInformation, &info, sizeof(info)))
+			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP");
+	}
+
+	void set_cpu_weight(unsigned int cpu_weight)
+	{
+		JOBOBJECT_CPU_RATE_CONTROL_INFORMATION info = { 0 };
+		info.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | JOB_OBJECT_CPU_RATE_CONTROL_WEIGHT_BASED;
+		info.Weight = cpu_weight;
+		if (FALSE == SetInformationJobObject(job_, JobObjectCpuRateControlInformation, &info, sizeof(info)))
+			throw job_exception("SetInformationJobObject failed when setting JOB_OBJECT_CPU_RATE_CONTROL_WEIGHT_BASED");
+	}
+
 	void set_ui_restrictions(unsigned ui_restrictions)
 	{
 		JOBOBJECT_BASIC_UI_RESTRICTIONS restrictions = { 0 };
@@ -388,6 +434,10 @@ int wmain(int argc, wchar_t* argv[])
 			job.set_priority(args.priority().value());
 		if (args.sched_class())
 			job.set_sched_class(args.sched_class().value());
+		if (args.cpu_rate())
+			job.set_cpu_rate(args.cpu_rate().value());
+		if (args.cpu_weight())
+			job.set_cpu_weight(args.cpu_weight().value());
 		if (args.ui_restrictions())
 			job.set_ui_restrictions(args.ui_restrictions().value());
 		job.run_process_in_job(args.application());
